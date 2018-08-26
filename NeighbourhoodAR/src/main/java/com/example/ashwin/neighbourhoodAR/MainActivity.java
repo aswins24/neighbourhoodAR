@@ -133,6 +133,7 @@ public class MainActivity extends AppCompatActivity implements
             Log.d("GPS", "Best provider: " + bestProvider);
             locationManager.requestLocationUpdates(bestProvider, 50, 0, this);
         }
+        Toast.makeText(this, "Fetching GPS", Toast.LENGTH_SHORT).show();
     }
 
     public void onCheckboxClicked(View view) {
