@@ -305,7 +305,6 @@ public class MainActivity extends AppCompatActivity implements
 
     public void onLocationChanged(Location location) {
         // store it off for use when we need it
-        Toast.makeText(this, "GPS is connected", Toast.LENGTH_SHORT).show();
         currentLocation = location;
         if (lastLocation != null) {
             currnetDistance = location.distanceTo(lastLocation);
@@ -315,6 +314,7 @@ public class MainActivity extends AppCompatActivity implements
         }
         if (lastLocation == null || currnetDistance > 250.00 && checkInternetConnection()) {
             Log.d(TAG, "onLocationChanged: Its getting updated");
+            Toast.makeText(this, "GPS is connected", Toast.LENGTH_SHORT).show();
             lastLocation = location;
             Camera myCamera = camera.getMyCamera();
             if (myCamera != null) {
