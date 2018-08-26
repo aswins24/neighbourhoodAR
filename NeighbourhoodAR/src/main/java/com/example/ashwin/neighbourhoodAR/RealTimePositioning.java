@@ -3,7 +3,6 @@ package com.example.ashwin.neighbourhoodAR;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.hardware.Camera;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -23,35 +22,36 @@ import java.util.ArrayList;
  * Created by ashwin on 7/20/2018.
  */
 public class RealTimePositioning extends View implements SensorEventListener {
-    Context c;
-    Camera.Parameters Params;
-    float accel_time_stamp = 0;
-    float mag_time_stamp = 0;
-    float alpha;
-    LandmarkDetails landmarkDetails;
-    Location location = new Location("");
-    Location target = new Location("");
-    LinearLayout cardLayout;
-    ArrayList<LandmarkDetails> landmarks;
-    private SensorManager sensor;
-    private Sensor accelSensor;
-    private Sensor gyroSensor;
-    private Sensor magSensor;
-    private float[] accel = new float[3];
-    private float[] compass = new float[3];
+    private static final String TAG = "RealTimePositioning";
+    private Context c;
+    private LandmarkDetails landmarkDetails;
+    private Location location = new Location("");
+    private Location target = new Location("");
+    private LinearLayout cardLayout;
+    private ArrayList<LandmarkDetails> landmarks;
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private Sensor gyroscope;
+    private Sensor magnetometer;
+    private float[] accelerometerArray = new float[3];
+    private float[] magnetometerArray = new float[3];
     private float[] gravity = new float[3];
-    private float[] linear_accel = new float[3];
-    private float[] magnetic = new float[3];
     private float[] gravityNew = new float[3];
-    private float dx, dy;
+    private float[] linearAccelerometer = new float[3];
+    private float[] magnetic = new float[3];
+    private float accelerometerTimeStamp = 0;
+    private float magnetometerTimeStamp = 0;
+    private float alpha;
+    private float dx;
+    private float dy;
     private float verticalFOV;
     private float horizontalFOV;
-    private boolean isAccel, isCompass;
+    private boolean hasAccelerometer = false;
+    private boolean hasMagnetometer = false;
     private boolean accelAccuracy = false;
     private boolean magAccuracy = false;
     private boolean flag = true;
-    private Toast t1, t2, t3;
-    private TextPaint contentPaint;
+    private TextPaint textPaint;
     private Paint targetPaint;
 
     public RealTimePositioning(Context context, ArrayList<LandmarkDetails> landmarkDetails, float horizontalFOV, float verticalFOV, TextPaint textPaint, Paint paint) {
@@ -60,7 +60,7 @@ public class RealTimePositioning extends View implements SensorEventListener {
         this.landmarks = landmarkDetails;
         this.horizontalFOV = horizontalFOV;
         this.verticalFOV = verticalFOV;
-        this.contentPaint = textPaint;
+        this.textPaint = textPaint;
         this.targetPaint = paint;
         registerSensors();
         LayoutInflater Inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -68,42 +68,35 @@ public class RealTimePositioning extends View implements SensorEventListener {
     }
 
     public void registerSensors() {
-        sensor = (SensorManager) c.getSystemService(c.SENSOR_SERVICE);
+        sensorManager = (SensorManager) c.getSystemService(c.SENSOR_SERVICE);
 
-        if ((accelSensor = sensor.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)) != null) {
-            Log.d("Sensor availabilty", "Accelerometer is available - " + accelSensor);
-            sensor.registerListener(this, accelSensor, SensorManager.SENSOR_DELAY_NORMAL);
-            isAccel = true;
+        if ((accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)) != null) {
+            Log.d(TAG, "registerSensors: Accelerometer is available - " + accelerometer);
+            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+            hasAccelerometer = true;
         } else {
-            isAccel = false;
-            if (t1 == null) {
-                t1 = Toast.makeText(c, " Accelerometer is not available ", Toast.LENGTH_SHORT);
-                t1.show();
-            }
+            hasAccelerometer = false;
+            Toast.makeText(c, "Accelerometer is not available ", Toast.LENGTH_SHORT).show();
         }
 
-        if ((gyroSensor = sensor.getDefaultSensor(Sensor.TYPE_GYROSCOPE)) != null) {
-            Log.d("Sensor availabilty", "Gyroscope is available - " + gyroSensor);
-            sensor.registerListener(this, gyroSensor, SensorManager.SENSOR_DELAY_NORMAL);
-        }
-
-        if ((magSensor = sensor.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)) != null) {
-            Log.d("Sensor availabilty", "compass is available - " + magSensor);
-            sensor.registerListener(this, magSensor, SensorManager.SENSOR_DELAY_NORMAL);
-            isCompass = true;
+        if ((gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)) != null) {
+            Log.d(TAG, "registerSensors: Gyroscope is available - " + gyroscope);
+            sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_NORMAL);
         } else {
-            isCompass = false;
-            if (t2 == null) {
-                t2 = Toast.makeText(c, " compass is not available ", Toast.LENGTH_SHORT);
-                t2.show();
-            }
+            Toast.makeText(c, "Gyroscope is not available ", Toast.LENGTH_SHORT).show();
         }
 
-        if (!isAccel || !isCompass) {
-            if (t3 == null) {
-                t3 = Toast.makeText(c, " Doesn't meet the  hardware requirements for running the application ", Toast.LENGTH_SHORT);
-                t3.show();
-            }
+        if ((magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)) != null) {
+            Log.d(TAG, "registerSensors: Magnetometer is available - " + magnetometer);
+            sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_NORMAL);
+            hasMagnetometer = true;
+        } else {
+            hasMagnetometer = false;
+            Toast.makeText(c, "Compass is not available ", Toast.LENGTH_SHORT).show();
+        }
+
+        if (!hasAccelerometer || !hasMagnetometer) {
+            Toast.makeText(c, " Doesn't meet the hardware requirements for running the application ", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -112,12 +105,12 @@ public class RealTimePositioning extends View implements SensorEventListener {
     }
 
     public void unregister() {
-        if (sensor != null)
-            sensor.unregisterListener(this);
+        if (sensorManager != null)
+            sensorManager.unregisterListener(this);
     }
 
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        Log.d("onAccuracyChanged", "Sensor: " + sensor + ", accuracy: " + accuracy);
+        Log.d(TAG, "onAccuracyChanged: Sensor: " + sensor + ", accuracy: " + accuracy);
         switch (sensor.getType()) {
             case Sensor.TYPE_ACCELEROMETER:
                 if (accuracy == 2 || accuracy == 3) {
@@ -131,51 +124,45 @@ public class RealTimePositioning extends View implements SensorEventListener {
     }
 
     public void onSensorChanged(SensorEvent event) {
-//        Log.d("onSensorChanged", "SensorEvent: " + event);
-//        if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) && flag) {
-//            Log.v("Sensor Changed", "Reached");
-//            flag = false;
-//            startGPS();
-//        }
         switch (event.sensor.getType()) {
             case Sensor.TYPE_ACCELEROMETER:
-                this.accel = event.values.clone();
-                if (accel_time_stamp != 0) {
-                    alpha = (accel_time_stamp / event.timestamp);
+                this.accelerometerArray = event.values.clone();
+                if (accelerometerTimeStamp != 0) {
+                    alpha = (accelerometerTimeStamp / event.timestamp);
 
-                    gravity[0] = alpha * gravity[0] + (1 - alpha) * accel[0];
-                    gravity[1] = alpha * gravity[1] + (1 - alpha) * accel[1];
-                    gravity[2] = alpha * gravity[2] + (1 - alpha) * accel[2];
+                    gravity[0] = alpha * gravity[0] + (1 - alpha) * accelerometerArray[0];
+                    gravity[1] = alpha * gravity[1] + (1 - alpha) * accelerometerArray[1];
+                    gravity[2] = alpha * gravity[2] + (1 - alpha) * accelerometerArray[2];
 
-                    linear_accel[0] = accel[0] - gravity[0];
-                    linear_accel[1] = accel[1] - gravity[1];
-                    linear_accel[2] = accel[2] - gravity[2];
+                    linearAccelerometer[0] = accelerometerArray[0] - gravity[0];
+                    linearAccelerometer[1] = accelerometerArray[1] - gravity[1];
+                    linearAccelerometer[2] = accelerometerArray[2] - gravity[2];
                 } else {
-                    linear_accel = accel;
-                    accel_time_stamp = event.timestamp;
+                    linearAccelerometer = accelerometerArray;
+                    accelerometerTimeStamp = event.timestamp;
                 }
                 break;
             case Sensor.TYPE_MAGNETIC_FIELD:
-                compass = event.values.clone();
-                if (mag_time_stamp != 0) {
-                    alpha = mag_time_stamp / event.timestamp;
+                magnetometerArray = event.values.clone();
+                if (magnetometerTimeStamp != 0) {
+                    alpha = magnetometerTimeStamp / event.timestamp;
 
-                    gravity[0] = alpha * gravityNew[0] + (1 - alpha) * compass[0];
-                    gravity[1] = alpha * gravityNew[1] + (1 - alpha) * compass[1];
-                    gravity[2] = alpha * gravityNew[2] + (1 - alpha) * compass[2];
+                    gravity[0] = alpha * gravityNew[0] + (1 - alpha) * magnetometerArray[0];
+                    gravity[1] = alpha * gravityNew[1] + (1 - alpha) * magnetometerArray[1];
+                    gravity[2] = alpha * gravityNew[2] + (1 - alpha) * magnetometerArray[2];
 
-                    magnetic[0] = compass[0] - gravityNew[0];
-                    magnetic[1] = compass[1] - gravityNew[1];
-                    magnetic[2] = compass[2] - gravityNew[2];
+                    magnetic[0] = magnetometerArray[0] - gravityNew[0];
+                    magnetic[1] = magnetometerArray[1] - gravityNew[1];
+                    magnetic[2] = magnetometerArray[2] - gravityNew[2];
                 } else {
-                    magnetic = compass;
-                    mag_time_stamp = event.timestamp;
+                    magnetic = magnetometerArray;
+                    magnetometerTimeStamp = event.timestamp;
                 }
-//              compassData = msg.toString();
                 break;
         }
-        if (isAccel && isCompass && accelAccuracy && magAccuracy && flag)
+        if (hasAccelerometer && hasMagnetometer && accelAccuracy && magAccuracy && flag) {
             this.invalidate();
+        }
     }
 
     @Override
@@ -185,49 +172,43 @@ public class RealTimePositioning extends View implements SensorEventListener {
             flag = false;
             landmarkDetails = landmarks.get(i);
 
-            target.setLatitude(landmarkDetails.get_latitude());
-            target.setLongitude(landmarkDetails.get_longitude());
+            target.setLatitude(landmarkDetails.getLatitude());
+            target.setLongitude(landmarkDetails.getLongitude());
 
             double bearingTo = location.bearingTo(target);
             float distance = location.distanceTo(target);
             float rotation[] = new float[9];
             float identity[] = new float[9];
             boolean gotRotation = SensorManager.getRotationMatrix(rotation,
-                    identity, linear_accel, magnetic);
+                    identity, linearAccelerometer, magnetic);
             float orientation[] = new float[3];
             if (gotRotation) {
-                // remap such that the camera is pointing straight down the Y
-                // axis
+                // remap such that the camera is pointing straight down the Y axis
                 float cameraRotation[] = new float[9];
                 // orientation vector
-                SensorManager.remapCoordinateSystem(rotation,
-                        SensorManager.AXIS_X, SensorManager.AXIS_Z,
-                        cameraRotation);
+                SensorManager.remapCoordinateSystem(rotation, SensorManager.AXIS_X, SensorManager.AXIS_Z, cameraRotation);
                 SensorManager.getOrientation(cameraRotation, orientation);
 
                 if (Math.abs(Math.toDegrees(orientation[0]) - bearingTo) <= 5 && distance <= 500) {
                     canvas.save();
-//            float bearig_difference = (float) (Math.toDegrees(orientation[0]) - bearingTo);
                     this.dx = (float) ((canvas.getWidth() / horizontalFOV) * (Math.toDegrees(orientation[0]) - bearingTo));
                     this.dy = (float) ((canvas.getHeight() / verticalFOV) * (Math.toDegrees(orientation[1])));
 
                     canvas.translate(0.0f, 0.0f - this.dy);
-//                        canvas.drawLine(0f - canvas.getHeight(), canvas.getHeight()/2, canvas.getWidth()+canvas.getHeight(), canvas.getHeight()/2, targetPaint);
+                    //canvas.drawLine(0f - canvas.getHeight(), canvas.getHeight()/2, canvas.getWidth()+canvas.getHeight(), canvas.getHeight()/2, targetPaint);
                     canvas.translate(0.0f - dx, 0.0f);
                     canvas.drawCircle(canvas.getWidth() / 2, canvas.getHeight() / 2, 8.0f, targetPaint);
-                    canvas.drawText(landmarkDetails.get_name(), canvas.getWidth() / 2, canvas.getHeight() / 2, contentPaint);
-                    canvas.drawText("" + distance + "m", canvas.getWidth() / 2 + 4, (canvas.getHeight() / 2 + 25), contentPaint);
-//                canvas.translate(canvas.getWidth()/2, canvas.getHeight()/2);
+                    canvas.drawText(landmarkDetails.getName(), canvas.getWidth() / 2, canvas.getHeight() / 2, textPaint);
+                    canvas.drawText("" + distance + "m", canvas.getWidth() / 2 + 4, (canvas.getHeight() / 2 + 25), textPaint);
+                    //canvas.translate(canvas.getWidth()/2, canvas.getHeight()/2);
 
                     TextView landmarktext = (TextView) cardLayout.findViewById(R.id.name_text);
                     TextView landmarkDistance = (TextView) cardLayout.findViewById(R.id.dist_text);
 
-                    landmarktext.setText(landmarkDetails.get_name());
+                    landmarktext.setText(landmarkDetails.getName());
                     landmarkDistance.setText("" + distance);
 
                     cardLayout.draw(canvas);
-                    Log.v("Canvas", "Card_Layout is " + cardLayout);
-
                     canvas.restore();
                 }
             }

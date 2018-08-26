@@ -7,6 +7,7 @@ import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.hardware.Camera;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
@@ -39,11 +40,12 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity implements
         LocationListener {
 
+    public static final String TAG = "MainActivity";
     protected static final int REQUEST_CHECK_SETTINGS = 0x1;
     protected static final int MY_PERMISSIONS_ACCESS_CAMERA = 101;
     protected static final int MY_PERMISSIONS_ACCESS_FINE_LOCATION = 99;
     private static Status status;
-    FrameLayout camera_view;
+    FrameLayout cameraView;
     RealTimePositioning positioning = null;
     Criteria criteria = new Criteria();
     ArrayList<LandmarkDetails> landmarkDetails = new ArrayList<LandmarkDetails>();
@@ -101,21 +103,22 @@ public class MainActivity extends AppCompatActivity implements
         if (camera == null) {
             try {
                 camera = new CameraPreview(getApplicationContext(), this);
-                camera_view = (FrameLayout) findViewById(R.id.camera_view);
-                camera_view.addView(camera);
+                cameraView = (FrameLayout) findViewById(R.id.camera_view);
+                cameraView.addView(camera);
             } catch (Exception e) {
-                Log.v("MainActivity", "Camera error");
+                Log.v(TAG, "cameraInstance: Camera error");
+                throw e;
             }
         } else {
-            camera_view = (FrameLayout) findViewById(R.id.camera_view);
-            camera_view.addView(camera);
+            cameraView = (FrameLayout) findViewById(R.id.camera_view);
+            cameraView.addView(camera);
         }
     }
 
     private void releaseCameraInstance() {
         if (camera != null) {
-            camera_view = (FrameLayout) findViewById(R.id.camera_view);
-            camera_view.removeView(camera);
+            cameraView = (FrameLayout) findViewById(R.id.camera_view);
+            cameraView.removeView(camera);
             camera = null;
         }
     }
@@ -124,13 +127,13 @@ public class MainActivity extends AppCompatActivity implements
         // criteria.setAccuracy(Criteria.ACCURACY_FINE);
         // while we want fine accuracy, it's unlikely to work indoors where we
         // do our testing. :)
-        Log.d("GPS", "Its called");
+        Log.d(TAG, "startGPS: It is called");
         criteria.setAccuracy(Criteria.NO_REQUIREMENT);
         criteria.setPowerRequirement(Criteria.NO_REQUIREMENT);
 //        String best = locationManager.getBestProvider(criteria, true);
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             String bestProvider = locationManager.getBestProvider(criteria, true);
-            Log.d("GPS", "Best provider: " + bestProvider);
+            Log.d(TAG, "startGPS: Best provider: " + bestProvider);
             locationManager.requestLocationUpdates(bestProvider, 50, 0, this);
         }
         Toast.makeText(this, "Fetching GPS", Toast.LENGTH_SHORT).show();
@@ -181,15 +184,15 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     private void executeNearbyLandMarks(String type) {
-        NearbyLandmarks nearbyLandmarks = new NearbyLandmarks(this, lastLocation, type, new NearbyLandmarks.Response() {
+        NearbyLandmarks nearbyLandmarks = new NearbyLandmarks(this, type, new NearbyLandmarks.Response() {
             @Override
             public void processComplete(ArrayList<LandmarkDetails> LDetails) {
                 landmarkDetails = LDetails;
                 if (positioning != null) {
-                    camera_view.removeView(positioning);
+                    cameraView.removeView(positioning);
                 }
                 positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
-                camera_view.addView(positioning);
+                cameraView.addView(positioning);
             }
         });
         nearbyLandmarks.execute(lastLocation);
@@ -234,21 +237,21 @@ public class MainActivity extends AppCompatActivity implements
                 status = result.getStatus();
                 switch (status.getStatusCode()) {
                     case LocationSettingsStatusCodes.SUCCESS:
-                        Log.i("Location Settings", "All location settings are satisfied.");
+                        Log.i(TAG, "displayLocationSettingsRequest: All location settings are satisfied.");
                         startGPS();
                         break;
                     case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
-                        Log.i("Location Settings", "Location settings are not satisfied. Show the user a dialog to upgrade location settings ");
+                        Log.i(TAG, "displayLocationSettingsRequest: Location settings are not satisfied. Show the user a dialog to upgrade location settings ");
                         try {
                             // Show the dialog by calling startResolutionForResult(), and check the result
                             // in onActivityResult().
                             status.startResolutionForResult(MainActivity.this, REQUEST_CHECK_SETTINGS);
                         } catch (IntentSender.SendIntentException e) {
-                            Log.i("Location Settings", "PendingIntent unable to execute request.");
+                            Log.i(TAG, "displayLocationSettingsRequest: PendingIntent unable to execute request.");
                         }
                         break;
                     case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
-                        Log.i("Location Settings", "Location settings are inadequate, and cannot be fixed here. Dialog not created.");
+                        Log.i(TAG, "displayLocationSettingsRequest: Location settings are inadequate, and cannot be fixed here. Dialog not created.");
                         break;
                 }
             }
@@ -272,7 +275,7 @@ public class MainActivity extends AppCompatActivity implements
 //                        startGPS();
                 } else {
 //                    cameraInstance();
-                    Toast.makeText(this, "This app requires GPS", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "onRequestPermissionsResult: This app requires GPS", Toast.LENGTH_SHORT).show();
                     // permission denied, boo! Disable the functionality that depends on this permission.
                 }
                 break;
@@ -302,6 +305,7 @@ public class MainActivity extends AppCompatActivity implements
 
     public void onLocationChanged(Location location) {
         // store it off for use when we need it
+        Toast.makeText(this, "GPS is connected", Toast.LENGTH_SHORT).show();
         currentLocation = location;
         if (lastLocation != null) {
             currnetDistance = location.distanceTo(lastLocation);
@@ -310,21 +314,26 @@ public class MainActivity extends AppCompatActivity implements
             positioning.setCurrentLocation(currentLocation);
         }
         if (lastLocation == null || currnetDistance > 250.00 && checkInternetConnection()) {
-            Log.d("Last location", "Its getting updated");
+            Log.d(TAG, "onLocationChanged: Its getting updated");
             lastLocation = location;
-            verticalFOV = camera.mCamera.getParameters().getVerticalViewAngle();
-            horizontalFOV = camera.mCamera.getParameters().getHorizontalViewAngle();
-            NearbyLandmarks nearbyLandmarks = new NearbyLandmarks(this, lastLocation, null, new NearbyLandmarks.Response() {
-                @Override
-                public void processComplete(ArrayList<LandmarkDetails> LDetails) {
-                    landmarkDetails = LDetails;
-                    if (positioning != null)
-                        camera_view.removeView(positioning);
-                    positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
-                    camera_view.addView(positioning);
-                }
-            });
-            nearbyLandmarks.execute(lastLocation);
+            Camera myCamera = camera.getMyCamera();
+            if (myCamera != null) {
+                verticalFOV = myCamera.getParameters().getVerticalViewAngle();
+                horizontalFOV = myCamera.getParameters().getHorizontalViewAngle();
+                NearbyLandmarks nearbyLandmarks = new NearbyLandmarks(this, null, new NearbyLandmarks.Response() {
+                    @Override
+                    public void processComplete(ArrayList<LandmarkDetails> LDetails) {
+                        landmarkDetails = LDetails;
+                        if (positioning != null)
+                            cameraView.removeView(positioning);
+                        positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
+                        cameraView.addView(positioning);
+                    }
+                });
+                nearbyLandmarks.execute(lastLocation);
+            } else {
+                Log.d(TAG, "onLocationChanged: Could not get camera instance");
+            }
         }
     }
 
@@ -333,7 +342,7 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     public void onProviderEnabled(String provider) {
-        Log.v("Provider Enabled", "Its something else");
+        Log.v(TAG, "onProviderEnabled: It is something else: " + provider);
         startGPS();
     }
 
@@ -368,8 +377,9 @@ public class MainActivity extends AppCompatActivity implements
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && flag) {
             displayLocationSettingsRequest(this);
         }
+
         if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            Log.v("Location manager", "Yup");
+            Log.v(TAG, "onResume: Yup");
             flag = true;
         }
 

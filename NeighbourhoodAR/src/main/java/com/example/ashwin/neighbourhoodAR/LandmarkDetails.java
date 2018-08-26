@@ -6,37 +6,36 @@ import android.content.Context;
  * Created by ashwin on 7/14/2018.
  */
 public class LandmarkDetails {
-    Context c;
-    double latitude;
-    double longitude;
-    String name;
+    private Context context;
+    private double latitude;
+    private double longitude;
+    private String name;
 
     public LandmarkDetails(Context context) {
-
-        c = context;
+        this.context = context;
     }
 
-    public void put_latitude(double lat) {
-        this.latitude = lat;
-    }
-
-    public void put_longitude(double lng) {
-        this.longitude = lng;
-    }
-
-    public void put_name(String name) {
-        this.name = name;
-    }
-
-    public double get_latitude() {
+    public double getLatitude() {
         return this.latitude;
     }
 
-    public double get_longitude() {
+    public void setLatitude(double latitude) {
+        this.latitude = latitude;
+    }
+
+    public double getLongitude() {
         return this.longitude;
     }
 
-    public String get_name() {
+    public void setLongitude(double longitude) {
+        this.longitude = longitude;
+    }
+
+    public String getName() {
         return this.name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 }

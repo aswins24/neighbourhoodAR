@@ -16,10 +16,10 @@ import java.io.IOException;
 public class CameraPreview extends SurfaceView implements
         SurfaceHolder.Callback {
 
-    public static final String DEBUG_TAG = "ArDisplayView Log";
-    public Camera mCamera;
+    private static final String TAG = "CameraPreview";
     SurfaceHolder mHolder;
     Activity mActivity;
+    private Camera myCamera;
 
 
     public CameraPreview(Context context, Activity activity) {
@@ -27,27 +27,30 @@ public class CameraPreview extends SurfaceView implements
         mActivity = activity;
         mHolder = getHolder();
         try {
-            mCamera = Camera.open(0);
+            myCamera = Camera.open(0);
         } catch (Exception e) {
-            Log.d("Camera", "Camera error");
+            Log.d(TAG, "CameraPreview: Camera error");
+            throw e;
         }
-        // This value is supposedly deprecated and set "automatically" when
-        // needed.
+        // This value is supposedly deprecated and set "automatically" when needed.
         // Without this, the application crashes.
         mHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         // callbacks implemented by ArDisplayView
         mHolder.addCallback(this);
     }
 
+    public Camera getMyCamera() {
+        return myCamera;
+    }
+
     public void surfaceCreated(SurfaceHolder holder) {
-        Log.d(DEBUG_TAG, "surfaceCreated");
+        Log.d(TAG, "surfaceCreated");
         // Grab the camera
-//         Set Display orientation
         Camera.CameraInfo info = new Camera.CameraInfo();
         Camera.getCameraInfo(Camera.CameraInfo.CAMERA_FACING_BACK, info);
 
-        int rotation = mActivity.getWindowManager().getDefaultDisplay()
-                .getRotation();
+        // Set Display orientation
+        int rotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
         int degrees = 0;
         switch (rotation) {
             case Surface.ROTATION_0:
@@ -63,19 +66,19 @@ public class CameraPreview extends SurfaceView implements
                 degrees = 270;
                 break;
         }
-        mCamera.setDisplayOrientation((info.orientation - degrees + 360) % 360);
+        myCamera.setDisplayOrientation((info.orientation - degrees + 360) % 360);
         try {
-            mCamera.setPreviewDisplay(mHolder);
-            mCamera.startPreview();
+            myCamera.setPreviewDisplay(mHolder);
+            myCamera.startPreview();
         } catch (IOException e) {
-            Log.e(DEBUG_TAG, "surfaceCreated exception: ", e);
+            Log.e(TAG, "surfaceCreated: Exception: ", e);
         }
     }
 
     public void surfaceChanged(SurfaceHolder holder, int format, int width,
                                int height) {
-        Log.d(DEBUG_TAG, "surfaceChanged");
-//        Camera.Parameters params = mCamera.getParameters();
+        Log.d(TAG, "surfaceChanged");
+//        Camera.Parameters params = myCamera.getParameters();
         // Find an appropriate preview size that fits the surface
 //        List<Camera.Size> prevSizes = params.getSupportedPreviewSizes();
 //        for (Camera.Size s : prevSizes) {
@@ -89,15 +92,15 @@ public class CameraPreview extends SurfaceView implements
         //params.setPreviewFormat(ImageFormat.JPEG);
         // Consider adjusting frame rate to appropriate rate for AR
         // Confirm the parameters
-        //mCamera.setParameters(params); // fails in latest API 28
+        //myCamera.setParameters(params); // fails in latest API 28
         // Begin previewing
-        mCamera.startPreview();
+        myCamera.startPreview();
     }
 
     public void surfaceDestroyed(SurfaceHolder holder) {
-        Log.d(DEBUG_TAG, "surfaceDestroyed");
+        Log.d(TAG, "surfaceDestroyed");
         // Shut down camera preview
-        mCamera.stopPreview();
-        mCamera.release();
+        myCamera.stopPreview();
+        myCamera.release();
     }
 }
