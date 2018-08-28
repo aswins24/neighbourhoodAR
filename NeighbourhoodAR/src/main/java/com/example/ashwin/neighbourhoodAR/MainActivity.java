@@ -105,6 +105,11 @@ public class MainActivity extends AppCompatActivity implements
                 camera = new CameraPreview(getApplicationContext(), this);
                 cameraView = (FrameLayout) findViewById(R.id.camera_view);
                 cameraView.addView(camera);
+                Camera myCamera = camera.getMyCamera();
+                if (myCamera != null) {
+                    verticalFOV = myCamera.getParameters().getVerticalViewAngle();
+                    horizontalFOV = myCamera.getParameters().getHorizontalViewAngle();
+                }
             } catch (Exception e) {
                 Log.v(TAG, "cameraInstance: Camera error");
                 throw e;
@@ -314,26 +319,20 @@ public class MainActivity extends AppCompatActivity implements
         }
         if (lastLocation == null || currnetDistance > 250.00 && checkInternetConnection()) {
             Log.d(TAG, "onLocationChanged: Its getting updated");
-            Toast.makeText(this, "GPS is connected", Toast.LENGTH_SHORT).show();
             lastLocation = location;
-            Camera myCamera = camera.getMyCamera();
-            if (myCamera != null) {
-                verticalFOV = myCamera.getParameters().getVerticalViewAngle();
-                horizontalFOV = myCamera.getParameters().getHorizontalViewAngle();
-                NearbyLandmarks nearbyLandmarks = new NearbyLandmarks(this, null, new NearbyLandmarks.Response() {
-                    @Override
-                    public void processComplete(ArrayList<LandmarkDetails> LDetails) {
-                        landmarkDetails = LDetails;
-                        if (positioning != null)
-                            cameraView.removeView(positioning);
-                        positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
-                        cameraView.addView(positioning);
-                    }
-                });
-                nearbyLandmarks.execute(lastLocation);
-            } else {
-                Log.d(TAG, "onLocationChanged: Could not get camera instance");
-            }
+
+            NearbyLandmarks nearbyLandmarks = new NearbyLandmarks(this, null, new NearbyLandmarks.Response() {
+                @Override
+                public void processComplete(ArrayList<LandmarkDetails> LDetails) {
+                    landmarkDetails = LDetails;
+                    if (positioning != null)
+                        cameraView.removeView(positioning);
+                    positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
+                    cameraView.addView(positioning);
+                }
+            });
+            nearbyLandmarks.execute(lastLocation);
+
         }
     }
 
