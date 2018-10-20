@@ -22,17 +22,20 @@ import java.util.ArrayList;
 public class NearbyLandmarks extends AsyncTask<Location, Void, ArrayList<LandmarkDetails>> {
     private static final String TAG = "NearbyLandmarks";
     public Response response = null;
+    public String page_token;
     private Context c;
     private double latitude;
     private double longitude;
     private String responseJSON;
     private String type;
     private ArrayList<LandmarkDetails> landmarkDetails = new ArrayList<>();
+    private Toast t1 = null;
 
-    public NearbyLandmarks(Context context, String type, Response response) {
+    public NearbyLandmarks(Context context, String type, String page_token, Response response) {
         this.c = context;
         this.response = response;
         this.type = type;
+        this.page_token = page_token;
     }
 
     @Override
@@ -52,7 +55,13 @@ public class NearbyLandmarks extends AsyncTask<Location, Void, ArrayList<Landmar
                 stringBuilder.append("&type=");
                 stringBuilder.append(type);
             }
+            if (page_token != null) {
+                stringBuilder.append("&pagetoken=");
+                Log.v("Page Token", "Token value is " + page_token);
+                stringBuilder.append(page_token.toString());
+            }
             stringBuilder.append("&key=" + "AIzaSyDqQkopSvrDR5yciMZan7Rl7guooG5vpf8");
+
             String requestURL = stringBuilder.toString();
             responseJSON = executeAndGetResponseAsString(requestURL);
         }
@@ -69,19 +78,21 @@ public class NearbyLandmarks extends AsyncTask<Location, Void, ArrayList<Landmar
 
             if (status.equals("OK")) {
                 Toast.makeText(c, "Nearby landmarks found", Toast.LENGTH_LONG).show();
-            } else {
-                Toast.makeText(c, "Nearby landmarks not found", Toast.LENGTH_LONG).show();
             }
 
             Log.v(TAG, "onPostExecute: Time to parse");
             Toast.makeText(c, "Extracting Data", Toast.LENGTH_SHORT).show();
             parseJSON(jsonObject);
-            response.processComplete(landmarkDetails);
+            response.processComplete(landmarkDetails, page_token);
 
 
         } catch (final JSONException e) {
             Log.e(TAG, "onPostExecute: Error: " + e.getMessage());
         }
+    }
+
+    public void cancelToast() {
+        this.t1.cancel();
     }
 
     private String executeAndGetResponseAsString(String uri) {
@@ -112,6 +123,7 @@ public class NearbyLandmarks extends AsyncTask<Location, Void, ArrayList<Landmar
     }
 
     private void parseJSON(JSONObject jsonobj) {
+
         try {
             JSONArray results = jsonobj.getJSONArray("results");
             if (results.length() == 0) {
@@ -129,11 +141,12 @@ public class NearbyLandmarks extends AsyncTask<Location, Void, ArrayList<Landmar
                     landmarks.setLatitude(latitude);
                     landmarks.setLongitude(longitude);
                     landmarks.setName(name);
-
                     landmarkDetails.add(landmarks);
 
+                    if (jsonobj.has("next_page_token")) { // Checking whether "next_page_token" is present in the JSON response.
+                        page_token = jsonobj.getString("next_page_token");
+                    }
                 }
-                Toast.makeText(c, "Landmarks found: " + landmarkDetails.size(), Toast.LENGTH_SHORT).show();
             }
         } catch (final JSONException e) {
             Log.e(TAG, "parseJSON: Error: " + e.getMessage());
@@ -199,7 +212,7 @@ public class NearbyLandmarks extends AsyncTask<Location, Void, ArrayList<Landmar
     //    }
 
     public interface Response {
-        void processComplete(ArrayList<LandmarkDetails> LDetails);
+        void processComplete(ArrayList<LandmarkDetails> LDetails, String Page_Token);
     }
 }
 

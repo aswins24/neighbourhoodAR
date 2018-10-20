@@ -33,6 +33,12 @@ public class RealTimePositioning extends View implements SensorEventListener {
     private Sensor accelerometer;
     private Sensor gyroscope;
     private Sensor magnetometer;
+    private float rotation[] = new float[9];
+    private float identity[] = new float[9];
+    private float orientation[] = new float[3];
+    private float cameraRotation[] = new float[9];
+    private boolean gotRotation;
+    private float last_azimuth = 0;
     private float[] accelerometerArray = new float[3];
     private float[] magnetometerArray = new float[3];
     private float[] gravity = new float[3];
@@ -130,40 +136,54 @@ public class RealTimePositioning extends View implements SensorEventListener {
                 if (accelerometerTimeStamp != 0) {
                     alpha = (accelerometerTimeStamp / event.timestamp);
 
-                    gravity[0] = alpha * gravity[0] + (1 - alpha) * accelerometerArray[0];
-                    gravity[1] = alpha * gravity[1] + (1 - alpha) * accelerometerArray[1];
-                    gravity[2] = alpha * gravity[2] + (1 - alpha) * accelerometerArray[2];
+                    gravity[0] = (alpha * gravity[0]) + (1 - alpha) * accelerometerArray[0];
+                    gravity[1] = (alpha * gravity[1]) + (1 - alpha) * accelerometerArray[1];
+                    gravity[2] = (alpha * gravity[2]) + (1 - alpha) * accelerometerArray[2];
 
                     linearAccelerometer[0] = accelerometerArray[0] - gravity[0];
                     linearAccelerometer[1] = accelerometerArray[1] - gravity[1];
                     linearAccelerometer[2] = accelerometerArray[2] - gravity[2];
+
+                    accelerometerTimeStamp = event.timestamp;
                 } else {
                     linearAccelerometer = accelerometerArray;
                     accelerometerTimeStamp = event.timestamp;
                 }
                 break;
+
+//            case Sensor.TYPE_GYROSCOPE:
+
+
             case Sensor.TYPE_MAGNETIC_FIELD:
                 magnetometerArray = event.values.clone();
                 if (magnetometerTimeStamp != 0) {
                     alpha = magnetometerTimeStamp / event.timestamp;
 
-                    gravity[0] = alpha * gravityNew[0] + (1 - alpha) * magnetometerArray[0];
-                    gravity[1] = alpha * gravityNew[1] + (1 - alpha) * magnetometerArray[1];
-                    gravity[2] = alpha * gravityNew[2] + (1 - alpha) * magnetometerArray[2];
+                    gravityNew[0] = (alpha * gravityNew[0]) + (1 - alpha) * magnetometerArray[0];
+                    gravityNew[1] = (alpha * gravityNew[1]) + (1 - alpha) * magnetometerArray[1];
+                    gravityNew[2] = (alpha * gravityNew[2]) + (1 - alpha) * magnetometerArray[2];
 
                     magnetic[0] = magnetometerArray[0] - gravityNew[0];
                     magnetic[1] = magnetometerArray[1] - gravityNew[1];
                     magnetic[2] = magnetometerArray[2] - gravityNew[2];
+
+                    magnetometerTimeStamp = event.timestamp;
                 } else {
                     magnetic = magnetometerArray;
                     magnetometerTimeStamp = event.timestamp;
                 }
+
                 break;
         }
-        if (hasAccelerometer && hasMagnetometer && accelAccuracy && magAccuracy && flag) {
+
+
+//            if (last_azimuth == 0 || Math.abs(last_azimuth - orientation[0]) > 3) {
+//                last_azimuth = orientation[0];
+        if (hasAccelerometer && hasMagnetometer && accelAccuracy && magAccuracy) {
             this.invalidate();
         }
     }
+
 
     @Override
     protected void onDraw(Canvas canvas) {
@@ -174,22 +194,20 @@ public class RealTimePositioning extends View implements SensorEventListener {
 
             target.setLatitude(landmarkDetails.getLatitude());
             target.setLongitude(landmarkDetails.getLongitude());
-
+//            Log.v("My Location", "Current location is "+location);
             double bearingTo = location.bearingTo(target);
             float distance = location.distanceTo(target);
-            float rotation[] = new float[9];
-            float identity[] = new float[9];
-            boolean gotRotation = SensorManager.getRotationMatrix(rotation,
+            gotRotation = SensorManager.getRotationMatrix(rotation,
                     identity, linearAccelerometer, magnetic);
-            float orientation[] = new float[3];
+
+
             if (gotRotation) {
                 // remap such that the camera is pointing straight down the Y axis
-                float cameraRotation[] = new float[9];
-                // orientation vector
                 SensorManager.remapCoordinateSystem(rotation, SensorManager.AXIS_X, SensorManager.AXIS_Z, cameraRotation);
+                // orientation vector
                 SensorManager.getOrientation(cameraRotation, orientation);
 
-                if (Math.abs(Math.toDegrees(orientation[0]) - bearingTo) <= 5 && distance <= 500) {
+                if (Math.abs(Math.toDegrees(orientation[0]) - bearingTo) <= 3 && distance <= 250) {
                     canvas.save();
                     this.dx = (float) ((canvas.getWidth() / horizontalFOV) * (Math.toDegrees(orientation[0]) - bearingTo));
                     this.dy = (float) ((canvas.getHeight() / verticalFOV) * (Math.toDegrees(orientation[1])));

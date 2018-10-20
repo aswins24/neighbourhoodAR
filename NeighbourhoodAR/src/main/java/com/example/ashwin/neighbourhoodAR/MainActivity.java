@@ -45,11 +45,15 @@ public class MainActivity extends AppCompatActivity implements
     protected static final int MY_PERMISSIONS_ACCESS_CAMERA = 101;
     protected static final int MY_PERMISSIONS_ACCESS_FINE_LOCATION = 99;
     private static Status status;
+    public LocationManager locationManager = null;
     FrameLayout cameraView;
     RealTimePositioning positioning = null;
     Criteria criteria = new Criteria();
     ArrayList<LandmarkDetails> landmarkDetails = new ArrayList<LandmarkDetails>();
-    private LocationManager locationManager = null;
+    NearbyLandmarks nearbyLandmarks;
+    private LandmarkDetails landmarks;
+    private String type = null;
+    private String next_page = null;
     private Location lastLocation = null;
     private Location currentLocation;
     private float verticalFOV;
@@ -101,6 +105,7 @@ public class MainActivity extends AppCompatActivity implements
 
     private void cameraInstance() {
         if (camera == null) {
+            Log.v("Camera Instance", "Calling camera object");
             try {
                 camera = new CameraPreview(getApplicationContext(), this);
                 cameraView = (FrameLayout) findViewById(R.id.camera_view);
@@ -109,6 +114,7 @@ public class MainActivity extends AppCompatActivity implements
                 if (myCamera != null) {
                     verticalFOV = myCamera.getParameters().getVerticalViewAngle();
                     horizontalFOV = myCamera.getParameters().getHorizontalViewAngle();
+
                 }
             } catch (Exception e) {
                 Log.v(TAG, "cameraInstance: Camera error");
@@ -139,80 +145,157 @@ public class MainActivity extends AppCompatActivity implements
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             String bestProvider = locationManager.getBestProvider(criteria, true);
             Log.d(TAG, "startGPS: Best provider: " + bestProvider);
-            locationManager.requestLocationUpdates(bestProvider, 50, 0, this);
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 50, 0, this);
+            if (bestProvider.equals("gps")) {
+                Toast.makeText(this, "Fetching GPS", Toast.LENGTH_SHORT).show();
+            } else
+                Toast.makeText(this, "Please check GPS", Toast.LENGTH_SHORT).show();
         }
-        Toast.makeText(this, "Fetching GPS", Toast.LENGTH_SHORT).show();
+
     }
 
     public void onCheckboxClicked(View view) {
         CheckBox checkBox = (CheckBox) view;
         boolean checked = checkBox.isChecked();
-
+        next_page = null;
         CheckBox restaurant = (CheckBox) findViewById(R.id.Restaurant);
         CheckBox hospital = (CheckBox) findViewById(R.id.Hospital);
         CheckBox bakery = (CheckBox) findViewById(R.id.Bakery);
         CheckBox carRepair = (CheckBox) findViewById(R.id.CarRepair);
 
-        String type = null;
 
         if (lastLocation != null) {
             switch (view.getId()) {
                 case R.id.Restaurant:
-                    toggleIfChecked(checked, hospital, bakery, carRepair);
                     type = "restaurant";
+                    if (hospital.isChecked())
+                        hospital.toggle();
+                    if (bakery.isChecked())
+                        bakery.toggle();
+                    if (carRepair.isChecked())
+                        carRepair.toggle();
                     break;
                 case R.id.Hospital:
-                    toggleIfChecked(checked, restaurant, bakery, carRepair);
                     type = "hospital";
+                    if (restaurant.isChecked())
+                        restaurant.toggle();
+                    if (bakery.isChecked())
+                        bakery.toggle();
+                    if (carRepair.isChecked())
+                        carRepair.toggle();
                     break;
                 case R.id.Bakery:
-                    toggleIfChecked(checked, restaurant, hospital, carRepair);
                     type = "bakery";
+                    if (hospital.isChecked())
+                        hospital.toggle();
+                    if (restaurant.isChecked())
+                        restaurant.toggle();
+                    if (carRepair.isChecked())
+                        carRepair.toggle();
                     break;
                 case R.id.CarRepair:
-                    toggleIfChecked(checked, restaurant, hospital, bakery);
                     type = "car_repair";
+                    if (hospital.isChecked())
+                        hospital.toggle();
+                    if (bakery.isChecked())
+                        bakery.toggle();
+                    if (restaurant.isChecked())
+                        restaurant.toggle();
                     break;
             }
+
+            if (!checkBox.isChecked()) {
+                type = null;
+            }
+
+            executeNearbyLandMarks(type);
         } else {
             checkBox.toggle();
             type = null;
             Toast.makeText(this, "GPS is not reliable", Toast.LENGTH_SHORT).show();
         }
-        if (type != null) {
-            executeNearbyLandMarks(type);
-        }
 
-        if (!checkBox.isChecked() && lastLocation != null) {
-            executeNearbyLandMarks(null);
-        }
+
+
     }
 
-    private void executeNearbyLandMarks(String type) {
-        NearbyLandmarks nearbyLandmarks = new NearbyLandmarks(this, type, new NearbyLandmarks.Response() {
+    private void executeNearbyLandMarks(final String type) {
+        // A request can give upto 60 results, but they are divided into 3 pages with 20 results in each page.
+        // In order to retrieve all the results, we have to use page_token from the JSON response(if present) and
+        // request again using the page token. Hence it takes 3 requests (maximum) to retrieve all results.
+        nearbyLandmarks = new NearbyLandmarks(this, type, null, new NearbyLandmarks.Response() {
+            // Requesting first page
             @Override
-            public void processComplete(ArrayList<LandmarkDetails> LDetails) {
+            public void processComplete(ArrayList<LandmarkDetails> LDetails, String Page_Token) {
                 landmarkDetails = LDetails;
-                if (positioning != null) {
-                    cameraView.removeView(positioning);
+                if (LDetails.isEmpty() || LDetails.size() == 0)
+                    lastLocation = null;
+                next_page = Page_Token; // If there are more than 20 results "Page_Token" will have a value, else "null".
+
+                if (next_page != null) {
+                    for (int i = 0; i < 25000; i++) {
+                        for (int j = 0; j < 25000; j++) {
+                            // There is a small delay (2 sec) before page_token will be valid, requesting next page without a delay will
+                            // cause an INVALID RESPONSE.
+                        }
+                    }
+                    nearbyLandmarks = new NearbyLandmarks(getApplicationContext(), type, next_page, new NearbyLandmarks.Response() {
+                        // Requesting second page (if page_token isn't "null").
+                        @Override
+                        public void processComplete(ArrayList<LandmarkDetails> LDetails, String Page_Token) {
+                            next_page = null;
+                            for (int i = 0; i < LDetails.size(); i++) {
+                                landmarks = LDetails.get(i);
+                                landmarkDetails.add(landmarks);
+                            }
+                            next_page = Page_Token;
+                            if (next_page != null) {
+                                for (int i = 0; i < 25000; i++) {
+                                    for (int j = 0; j < 25000; j++) {
+                                        // There is a small delay (2 sec) before page_token will be valid, requesting next page without a delay will
+                                        // cause an INVALID RESPONSE.
+                                    }
+                                }
+                                nearbyLandmarks = new NearbyLandmarks(getApplicationContext(), type, next_page, new NearbyLandmarks.Response() {
+                                    //Requesting 3rd page (if page token isn't "null")
+                                    @Override
+                                    public void processComplete(ArrayList<LandmarkDetails> LDetails, String Page_Token) {
+                                        for (int i = 0; i < LDetails.size(); i++) {
+                                            landmarks = LDetails.get(i);
+                                            landmarkDetails.add(landmarks);
+                                        }
+                                        if (positioning != null)
+                                            cameraView.removeView(positioning);
+                                        positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
+                                        cameraView.addView(positioning);
+                                        Toast.makeText(getApplicationContext(), "Landmark size is " + landmarkDetails.size(), Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                                nearbyLandmarks.execute(lastLocation);
+                            } else {
+                                if (positioning != null)
+                                    cameraView.removeView(positioning);
+                                positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
+                                cameraView.addView(positioning);
+                                Toast.makeText(getApplicationContext(), "Landmark size is " + landmarkDetails.size(), Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    });
+                    nearbyLandmarks.execute(lastLocation);
+
+                } else {
+                    if (positioning != null) {
+                        cameraView.removeView(positioning);
+                    }
+                    positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
+                    cameraView.addView(positioning);
+                    Toast.makeText(getApplicationContext(), "Landmark size is " + landmarkDetails.size(), Toast.LENGTH_SHORT).show();
                 }
-                positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
-                cameraView.addView(positioning);
             }
         });
         nearbyLandmarks.execute(lastLocation);
     }
 
-    private void toggleIfChecked(boolean checked, CheckBox hospital, CheckBox bakery, CheckBox carRepair) {
-        if (checked) {
-            if (hospital.isChecked())
-                hospital.toggle();
-            if (bakery.isChecked())
-                bakery.toggle();
-            if (carRepair.isChecked())
-                carRepair.toggle();
-        }
-    }
 
     private boolean getLocationPermission() {
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -280,7 +363,7 @@ public class MainActivity extends AppCompatActivity implements
 //                        startGPS();
                 } else {
 //                    cameraInstance();
-                    Toast.makeText(this, "onRequestPermissionsResult: This app requires GPS", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, " This app requires GPS", Toast.LENGTH_SHORT).show();
                     // permission denied, boo! Disable the functionality that depends on this permission.
                 }
                 break;
@@ -303,6 +386,7 @@ public class MainActivity extends AppCompatActivity implements
         if (requestCode == REQUEST_CHECK_SETTINGS && resultCode == RESULT_OK) {
             startGPS();
         } else if (requestCode == REQUEST_CHECK_SETTINGS && resultCode == RESULT_CANCELED) {
+
             flag = false;
             Toast.makeText(this, "This application requires GPS ", Toast.LENGTH_SHORT).show();
         }
@@ -312,26 +396,19 @@ public class MainActivity extends AppCompatActivity implements
         // store it off for use when we need it
         currentLocation = location;
         if (lastLocation != null) {
-            currnetDistance = location.distanceTo(lastLocation);
+            currnetDistance = currentLocation.distanceTo(lastLocation);
         }
-        if (positioning != null) {
-            positioning.setCurrentLocation(currentLocation);
-        }
+
         if (lastLocation == null || currnetDistance > 250.00 && checkInternetConnection()) {
             Log.d(TAG, "onLocationChanged: Its getting updated");
             lastLocation = location;
 
-            NearbyLandmarks nearbyLandmarks = new NearbyLandmarks(this, null, new NearbyLandmarks.Response() {
-                @Override
-                public void processComplete(ArrayList<LandmarkDetails> LDetails) {
-                    landmarkDetails = LDetails;
-                    if (positioning != null)
-                        cameraView.removeView(positioning);
-                    positioning = new RealTimePositioning(getApplicationContext(), landmarkDetails, horizontalFOV, verticalFOV, contentPaint, targetPaint);
-                    cameraView.addView(positioning);
-                }
-            });
-            nearbyLandmarks.execute(lastLocation);
+
+            executeNearbyLandMarks(type);
+
+        }
+        if (positioning != null) {
+            positioning.setCurrentLocation(currentLocation);
 
         }
     }
@@ -361,20 +438,22 @@ public class MainActivity extends AppCompatActivity implements
         super.onPause();
         if (positioning != null)
             positioning.unregister();
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-            locationManager.removeUpdates(this);
+
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         releaseCameraInstance();
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             cameraInstance();
         }
 
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && flag) {
-            displayLocationSettingsRequest(this);
+//            displayLocationSettingsRequest(this);
+            flag = false;
+            startGPS();
         }
 
         if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
@@ -382,7 +461,7 @@ public class MainActivity extends AppCompatActivity implements
             flag = true;
         }
 
-        startGPS();
+
         if (positioning != null)
             positioning.registerSensors();
     }
@@ -394,13 +473,21 @@ public class MainActivity extends AppCompatActivity implements
             checkCameraPermission();
         }
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            flag = false;
             getLocationPermission();
         }
+//        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && flag) {
+//            displayLocationSettingsRequest(this);
+//        }
+
     }
 
     @Override
     protected void onStop() {
         super.onStop();
+        releaseCameraInstance();
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+            locationManager.removeUpdates(this);
+        positioning = null;
+
     }
 }
