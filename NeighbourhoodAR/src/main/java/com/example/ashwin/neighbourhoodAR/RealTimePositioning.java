@@ -169,8 +169,8 @@ public class RealTimePositioning extends View implements SensorEventListener {
                     alpha = magnetometerTimeStamp / event.timestamp;
 
                     magnetic[0] = (alpha * magnetometerArray[0]) + (1 - alpha) * magnetic[0];
-                    magnetic[1] = (alpha * gravityNew[1]) + (1 - alpha) * magnetic[1];
-                    magnetic[2] = (alpha * gravityNew[2]) + (1 - alpha) * magnetic[2];
+                    magnetic[1] = (alpha * magnetometerArray[1]) + (1 - alpha) * magnetic[1];
+                    magnetic[2] = (alpha * magnetometerArray[2]) + (1 - alpha) * magnetic[2];
 
 
                     magnetometerTimeStamp = event.timestamp;
