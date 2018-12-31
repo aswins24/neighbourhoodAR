@@ -10,10 +10,8 @@ import android.hardware.SensorManager;
 import android.location.Location;
 import android.text.TextPaint;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -69,8 +67,8 @@ public class RealTimePositioning extends View implements SensorEventListener {
         this.textPaint = textPaint;
         this.targetPaint = paint;
         registerSensors();
-        LayoutInflater Inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-        cardLayout = (LinearLayout) Inflater.inflate(R.layout.landmarks_in_card, null);
+//        LayoutInflater Inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+//        cardLayout = (LinearLayout) Inflater.inflate(R.layout.landmarks_in_card, null);
     }
 
     public void registerSensors() {
@@ -140,13 +138,24 @@ public class RealTimePositioning extends View implements SensorEventListener {
                     gravity[1] = (alpha * gravity[1]) + (1 - alpha) * accelerometerArray[1];
                     gravity[2] = (alpha * gravity[2]) + (1 - alpha) * accelerometerArray[2];
 
+                    accelerometerArray[0] = accelerometerArray[0] - gravity[0];
+                    accelerometerArray[1] = accelerometerArray[1] - gravity[1];
+                    accelerometerArray[2] = accelerometerArray[2] - gravity[2];
+
+                    linearAccelerometer[0] = (alpha * accelerometerArray[0]) + (1 - alpha) * linearAccelerometer[0];
+                    linearAccelerometer[1] = (alpha * accelerometerArray[1]) + (1 - alpha) * linearAccelerometer[1];
+                    linearAccelerometer[2] = (alpha * accelerometerArray[2]) + (1 - alpha) * linearAccelerometer[2];
+
+                    accelerometerTimeStamp = event.timestamp;
+                } else {
+                    gravity[0] = (float) (0.85 * gravity[0]) + (1 - alpha) * accelerometerArray[0];
+                    gravity[1] = (float) (0.85 * gravity[1]) + (1 - alpha) * accelerometerArray[1];
+                    gravity[2] = (float) (0.85 * gravity[2]) + (1 - alpha) * accelerometerArray[2];
+
                     linearAccelerometer[0] = accelerometerArray[0] - gravity[0];
                     linearAccelerometer[1] = accelerometerArray[1] - gravity[1];
                     linearAccelerometer[2] = accelerometerArray[2] - gravity[2];
 
-                    accelerometerTimeStamp = event.timestamp;
-                } else {
-                    linearAccelerometer = accelerometerArray;
                     accelerometerTimeStamp = event.timestamp;
                 }
                 break;
@@ -159,13 +168,10 @@ public class RealTimePositioning extends View implements SensorEventListener {
                 if (magnetometerTimeStamp != 0) {
                     alpha = magnetometerTimeStamp / event.timestamp;
 
-                    gravityNew[0] = (alpha * gravityNew[0]) + (1 - alpha) * magnetometerArray[0];
-                    gravityNew[1] = (alpha * gravityNew[1]) + (1 - alpha) * magnetometerArray[1];
-                    gravityNew[2] = (alpha * gravityNew[2]) + (1 - alpha) * magnetometerArray[2];
+                    magnetic[0] = (alpha * magnetometerArray[0]) + (1 - alpha) * magnetic[0];
+                    magnetic[1] = (alpha * gravityNew[1]) + (1 - alpha) * magnetic[1];
+                    magnetic[2] = (alpha * gravityNew[2]) + (1 - alpha) * magnetic[2];
 
-                    magnetic[0] = magnetometerArray[0] - gravityNew[0];
-                    magnetic[1] = magnetometerArray[1] - gravityNew[1];
-                    magnetic[2] = magnetometerArray[2] - gravityNew[2];
 
                     magnetometerTimeStamp = event.timestamp;
                 } else {
@@ -220,13 +226,13 @@ public class RealTimePositioning extends View implements SensorEventListener {
                     canvas.drawText("" + distance + "m", canvas.getWidth() / 2 + 4, (canvas.getHeight() / 2 + 25), textPaint);
                     //canvas.translate(canvas.getWidth()/2, canvas.getHeight()/2);
 
-                    TextView landmarktext = (TextView) cardLayout.findViewById(R.id.name_text);
-                    TextView landmarkDistance = (TextView) cardLayout.findViewById(R.id.dist_text);
-
-                    landmarktext.setText(landmarkDetails.getName());
-                    landmarkDistance.setText("" + distance);
-
-                    cardLayout.draw(canvas);
+//                    TextView landmarktext = (TextView) cardLayout.findViewById(R.id.name_text);
+//                    TextView landmarkDistance = (TextView) cardLayout.findViewById(R.id.dist_text);
+//
+//                    landmarktext.setText(landmarkDetails.getName());
+//                    landmarkDistance.setText("" + distance);
+//
+//                    cardLayout.draw(canvas);
                     canvas.restore();
                 }
             }
